@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 agent-docs-budget = "agent_docs_hooks.budget:main"
+agent-docs-indexed = "agent_docs_hooks.index:main"
 agent-docs-skills = "agent_docs_hooks.skills:main"
 
 [dependency-groups]

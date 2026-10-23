@@ -12,3 +12,10 @@
   language: python
   pass_filenames: false
   always_run: true
+- id: docs-indexed
+  name: docs indexed
+  description: Checks that every doc is listed once in its directory's INDEX.md.
+  entry: agent-docs-indexed
+  language: python
+  pass_filenames: false
+  always_run: true
