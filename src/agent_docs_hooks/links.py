@@ -13,6 +13,7 @@ from typing import NoReturn
 from agent_docs_hooks._repo import repo_root, tracked_files
 
 _BINARY_NAMES = ("lychee", "lychee.exe")
+_GLOB_LITERALS = {"[": "[[]", "]": "[]]", "*": "[*]", "?": "[?]"}
 
 
 def lychee_path() -> Path:
@@ -35,6 +36,12 @@ def _binary_missing() -> NoReturn:
     raise SystemExit(2)
 
 
+def _literal(path: str) -> str:
+    """`path` as a glob that matches only itself: lychee reads any input holding `[`, `]`, `*` or
+    `?` as a pattern."""
+    return "".join(_GLOB_LITERALS.get(char, char) for char in path)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="agent-docs-links",
@@ -54,6 +61,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--root-dir",
         str(root),
         "--",
-        *paths,
+        *(_literal(path) for path in paths),
     ]
     return subprocess.run(command, cwd=root, check=False).returncode

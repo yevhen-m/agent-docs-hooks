@@ -92,3 +92,23 @@ def test_no_markdown_passes_without_running_lychee(scratch_repo: Path) -> None:
     status, output = links(scratch_repo, {"a.txt": "[x](missing.md)\n"})
 
     assert (status, output) == (0, "")
+
+
+def test_paths_with_glob_characters_are_read_as_written(scratch_repo: Path) -> None:
+    files = {
+        "app/[slug]/README.md": "[gone](gone-slug.md)\n",
+        "docs/[draft].md": "[gone](gone-draft.md)\n",
+        "docs/d.md": "[gone](gone-d.md)\n",
+        "notes/a*.md": "[gone](gone-star.md)\n",
+        "notes/ab.md": "[gone](gone-ab.md)\n",
+        "notes/q?.md": "[gone](gone-question.md)\n",
+        "notes/qx.md": "[gone](gone-qx.md)\n",
+    }
+
+    status, output = links(scratch_repo, files)
+
+    assert status != 0
+    for path, text in files.items():
+        target = text[len("[gone](") : -len(")\n")]
+        assert output.count(f"[{path}]:") == 1, output
+        assert output.count(f"/{target} ") == 1, output
