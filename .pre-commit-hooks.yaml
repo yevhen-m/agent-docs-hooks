@@ -3,6 +3,7 @@
   description: Keeps CLAUDE.md, AGENTS.md, docs and skills within their line and token limits.
   entry: agent-docs-budget
   language: python
+  stages: [pre-commit, pre-merge-commit, manual]
   pass_filenames: false
   always_run: true
 - id: skills
@@ -10,6 +11,7 @@
   description: Checks the frontmatter of every SKILL.md under the skills root.
   entry: agent-docs-skills
   language: python
+  stages: [pre-commit, pre-merge-commit, manual]
   pass_filenames: false
   always_run: true
 - id: docs-indexed
@@ -17,6 +19,7 @@
   description: Checks that every doc is listed once in its directory's INDEX.md.
   entry: agent-docs-indexed
   language: python
+  stages: [pre-commit, pre-merge-commit, manual]
   pass_filenames: false
   always_run: true
 - id: mdformat
@@ -24,11 +27,13 @@
   description: Formats markdown with mdformat, its GFM and frontmatter plugins, at wrap 100.
   entry: agent-docs-mdformat
   language: python
+  stages: [pre-commit, pre-merge-commit, manual]
   types: [markdown]
 - id: doc-links
   name: doc links
   description: Checks every relative link and heading anchor in tracked markdown, offline, with lychee.
   entry: agent-docs-links
   language: python
+  stages: [pre-commit, pre-merge-commit, manual]
   pass_filenames: false
   always_run: true

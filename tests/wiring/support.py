@@ -88,10 +88,14 @@ def script(name: str) -> Path:
 
 
 def install_hooks(
-    *, repo: Path, hooks: Mapping[str, Sequence[str]], hook_repo: tuple[Path, str]
+    *,
+    repo: Path,
+    hooks: Mapping[str, Sequence[str]],
+    hook_repo: tuple[Path, str],
+    hook_types: Sequence[str] = ("pre-commit",),
 ) -> None:
     """Commit a `.pre-commit-config.yaml` naming `hook_repo` by path and sha, with each hook id
-    given its args (none when empty), and install the git hook."""
+    given its args (none when empty), and install pre-commit as each of `hook_types`."""
     path, sha = hook_repo
     lines = ["repos:", f"  - repo: {json.dumps(str(path))}", f"    rev: {sha}", "    hooks:"]
     for hook_id, args in hooks.items():
@@ -101,7 +105,8 @@ def install_hooks(
     (repo / ".pre-commit-config.yaml").write_text("\n".join(lines) + "\n")
     git(repo, "add", ".pre-commit-config.yaml")
     git(repo, "commit", "--quiet", "-m", "install hooks")
-    result = run(pre_commit("install"), repo)
+    types = [arg for hook_type in hook_types for arg in ("--hook-type", hook_type)]
+    result = run(pre_commit("install", *types), repo)
     assert result.returncode == 0, result.stdout + result.stderr
 
 

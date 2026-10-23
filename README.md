@@ -50,6 +50,10 @@ Every hook except `mdformat` checks all the files git tracks, not just the ones 
 If you delete or rename a doc, the files that point at it break even though you never touched them,
 and those are exactly the breaks worth catching.
 
+The hooks run when you commit, including merge commits, and with `pre-commit run`. They don't run at
+other git hooks you install, such as `commit-msg` or `pre-push`. To change that, set `stages:` on
+the hook in your config.
+
 The defaults fit a repo with docs in `docs/` and skills in `.claude/skills/`. If yours live
 somewhere else, pass the paths as `args`. Paths are relative to the repo root.
 

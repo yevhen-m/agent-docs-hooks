@@ -138,3 +138,44 @@ def test_args(scratch_repo: Path, hook_repo_commit: tuple[Path, str]) -> None:
     status, sections, output = run_all(scratch_repo)
 
     assert status == 0, output
+
+
+def test_checks_run_once_per_commit_with_commit_msg_installed(
+    scratch_repo: Path, hook_repo_commit: tuple[Path, str]
+) -> None:
+    install_hooks(
+        repo=scratch_repo,
+        hooks=dict.fromkeys(HOOK_IDS, ()),
+        hook_repo=hook_repo_commit,
+        hook_types=("pre-commit", "commit-msg"),
+    )
+    write(scratch_repo, CONVENTIONAL)
+    git(scratch_repo, "add", ".")
+
+    result = run(["git", "commit", "-m", "add docs"], scratch_repo)
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    for name in ("doc budget", "docs indexed", "skills", "doc links", "mdformat"):
+        assert output.count(f"{name}...") == 1, output
+
+
+def test_push_isnt_blocked_by_uncommitted_work(
+    scratch_repo: Path, tmp_path: Path, hook_repo_commit: tuple[Path, str]
+) -> None:
+    remote = tmp_path / "remote.git"
+    git(tmp_path, "init", "--quiet", "--bare", str(remote))
+    install_hooks(
+        repo=scratch_repo,
+        hooks=dict.fromkeys(HOOK_IDS, ()),
+        hook_repo=hook_repo_commit,
+        hook_types=("pre-commit", "pre-push"),
+    )
+    git(scratch_repo, "remote", "add", "origin", str(remote))
+    write(scratch_repo, {"broken.md": "[gone](gone.md)\n"})
+    git(scratch_repo, "add", "broken.md")
+
+    result = run(["git", "push", "--quiet", "origin", "main"], scratch_repo)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert git(remote, "rev-parse", "main") == git(scratch_repo, "rev-parse", "HEAD")
