@@ -94,14 +94,29 @@ def test_doc_listed_twice() -> None:
         (
             "[other](../README.md)",
             {"README.md": "# R\n"},
-            "README.md is in another directory; list it in that directory's INDEX.md",
+            "README.md is outside docs/, so no index can list it; remove this row",
         ),
         (
             "[nested](sub/x.md)",
             {"docs/sub/x.md": "# X\n", "docs/sub/INDEX.md": index_md(rows=[("X", "[x](x.md)")])},
-            "docs/sub/x.md is in another directory; list it in that directory's INDEX.md",
+            "docs/sub/x.md is in another directory; list it in docs/sub/INDEX.md instead",
         ),
-        ("[notes](notes.txt)", {"docs/notes.txt": "x\n"}, "docs/notes.txt isn't a markdown file"),
+        (
+            "[deep](sub/d/INDEX.md)",
+            {"docs/sub/d/INDEX.md": "# D\n"},
+            "docs/sub/d/INDEX.md is another index; remove this row, since only docs/INDEX.md "
+            "lists indexes, and only those one directory below it",
+        ),
+        (
+            "[self](INDEX.md)",
+            {},
+            "docs/INDEX.md is this index itself, not a doc; remove this row",
+        ),
+        (
+            "[notes](notes.txt)",
+            {"docs/notes.txt": "x\n"},
+            "docs/notes.txt isn't a markdown file; remove this row",
+        ),
     ],
 )
 def test_entry_target_must_be_a_tracked_doc_in_the_same_directory(
@@ -163,6 +178,16 @@ def test_subdirectory_index_listed_in_root_passes() -> None:
             "Before A",
             "[a](https://example.com/a.md)",
             "row's link must point at a file in this repo, not a URL",
+        ),
+        (
+            "Before A",
+            "[top](#top)",
+            "row's link points at a heading in this index; link the doc's file instead",
+        ),
+        (
+            "Before A",
+            "[query](?page=2)",
+            "row's link doesn't name a file; link the doc's file instead",
         ),
     ],
 )
@@ -291,3 +316,15 @@ def test_index_git_tracks_but_the_hook_cant_read_says_why(why: Skipped, message:
     problems = check(files, skipped={"docs/s/INDEX.md": why})
 
     assert problem("docs/s/INDEX.md", None, message) in problems
+
+
+def test_entry_for_a_doc_too_deep_for_any_index() -> None:
+    files = tree()
+    files["docs/sub/d/x.md"] = "# X\n"
+    files["docs/INDEX.md"] = index_md(rows=[("Before A", "[a](a.md)"), ("Deep", "[x](sub/d/x.md)")])
+
+    assert problem(
+        "docs/INDEX.md",
+        4,
+        "docs/sub/d/x.md is too deep for any index; docs go in docs/ or one directory below it",
+    ) in check(files)

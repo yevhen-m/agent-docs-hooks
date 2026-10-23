@@ -74,8 +74,17 @@ def _row(cells: list[Token], *, line: int, base: str) -> Row:
         return BadRow(line=line, reason="row's second cell has more than one link")
     target = _resolve(links[0], base=base)
     if target is None:
-        return BadRow(line=line, reason="row's link must point at a file in this repo, not a URL")
+        return BadRow(line=line, reason=_no_file_reason(links[0]))
     return Entry(trigger=cells[0].content.strip(), target=target, line=line)
+
+
+def _no_file_reason(href: str) -> str:
+    """Why a link `_resolve` rejected doesn't name a doc."""
+    if _URL.match(href):
+        return "row's link must point at a file in this repo, not a URL"
+    if href.startswith("#"):
+        return "row's link points at a heading in this index; link the doc's file instead"
+    return "row's link doesn't name a file; link the doc's file instead"
 
 
 def _table_rows(text: str) -> Iterator[tuple[int, list[Token]]]:
@@ -170,6 +179,7 @@ def check_index(
             expected=expected,
             tracked=tracked,
             skipped=skipped,
+            docs_root=docs_root,
             is_root=index == root_index,
         )
 
@@ -191,6 +201,7 @@ def _check_one_index(
     expected: Sequence[RepoPath],
     tracked: frozenset[RepoPath],
     skipped: Mapping[RepoPath, Skipped],
+    docs_root: str,
     is_root: bool,
 ) -> list[Problem]:
     """Rules 4 to 6 for one index: valid rows, valid targets, and each expected path listed once."""
@@ -203,7 +214,12 @@ def _check_one_index(
             continue
         target = row.target
         mistake = _target_mistake(
-            target, directory=directory, tracked=tracked, skipped=skipped, is_root=is_root
+            target,
+            directory=directory,
+            tracked=tracked,
+            skipped=skipped,
+            docs_root=docs_root,
+            is_root=is_root,
         )
         if mistake is not None:
             problems.append(Problem(path=index, line=row.line, message=mistake))
@@ -247,20 +263,35 @@ def _target_mistake(
     directory: str,
     tracked: frozenset[RepoPath],
     skipped: Mapping[RepoPath, Skipped],
+    docs_root: str,
     is_root: bool,
 ) -> str | None:
-    """Why an entry's target isn't one this index may list, or `None` when it may."""
+    """Why an entry's target isn't one this index may list, or `None` when it may.
+
+    Each reason says how to clear it for every target it can be given for."""
     if target not in tracked:
         return f"{target} {_UNREADABLE_TARGET[skipped.get(target)]}"
     target_dir, name = posixpath.split(target)
     if is_root and name == INDEX and posixpath.dirname(target_dir) == directory:
         return None
-    if target_dir != directory:
-        return f"{target} is in another directory; list it in that directory's {INDEX}"
-    if not name.endswith(".md"):
-        return f"{target} isn't a markdown file"
+    if not target.startswith(f"{docs_root}/"):
+        return f"{target} is outside {docs_root}/, so no index can list it; remove this row"
+    if target == f"{directory}/{INDEX}":
+        return f"{target} is this index itself, not a doc; remove this row"
     if name == INDEX:
-        return f"{target} is this index itself, not a doc"
+        return (
+            f"{target} is another index; remove this row, since only {docs_root}/{INDEX} "
+            f"lists indexes, and only those one directory below it"
+        )
+    if not name.endswith(".md"):
+        return f"{target} isn't a markdown file; remove this row"
+    if target_dir != directory:
+        if target_dir[len(docs_root) :].count("/") > 1:
+            return (
+                f"{target} is too deep for any index; docs go in {docs_root}/ "
+                f"or one directory below it"
+            )
+        return f"{target} is in another directory; list it in {target_dir}/{INDEX} instead"
     return None
 
 

@@ -75,8 +75,8 @@ the file again and commit.
 If your repo root has a `.mdformat.toml`, the hook passes none of its own options and your file's
 settings win in full. Anything you don't set there falls back to mdformat's own defaults, not this
 hook's, so wrapping and list numbering stop unless you set them. The GFM and frontmatter plugins
-stay on either way. A `.mdformat.toml` in a subfolder, with none at the root, doesn't change
-anything the hook sets, because its options override the file.
+stay on either way. With no `.mdformat.toml` at the root, the hook passes its own options, and they
+win over the same settings in a `.mdformat.toml` in a subfolder.
 
 To skip some files, use pre-commit's `exclude:` on the hook. Don't use mdformat's own `exclude`
 setting: mdformat 1.0.0 rejects it on Python older than 3.13.
