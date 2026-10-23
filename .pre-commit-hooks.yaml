@@ -25,3 +25,10 @@
   entry: agent-docs-mdformat
   language: python
   types: [markdown]
+- id: doc-links
+  name: doc links
+  description: Checks every relative link and heading anchor in tracked markdown, offline, with lychee.
+  entry: agent-docs-links
+  language: python
+  pass_filenames: false
+  always_run: true

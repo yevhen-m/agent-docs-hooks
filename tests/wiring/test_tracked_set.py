@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
-from support import git, run, script
+from support import git, install_hooks, run, script
 
 
 def write(repo: Path, path: str, text: str) -> None:
@@ -86,3 +87,57 @@ def test_index_targets_are_tracked(scratch_repo: Path) -> None:
         "docs/INDEX.md:4: docs/draft.md doesn't exist or isn't tracked by git",
         "docs/INDEX.md:5: docs/gone.md doesn't exist or isn't tracked by git",
     ]
+
+
+def test_deletion_only_commit_fails(scratch_repo: Path, hook_repo_commit: tuple[Path, str]) -> None:
+    install_hooks(
+        repo=scratch_repo,
+        hooks={"doc-links": [], "docs-indexed": []},
+        hook_repo=hook_repo_commit,
+    )
+    write(scratch_repo, "CLAUDE.md", "Read [the docs](docs/INDEX.md).\n")
+    write(
+        scratch_repo,
+        "docs/INDEX.md",
+        "| When | Read |\n| --- | --- |\n| Before A | [a](a.md) |\n| Before B | [b](b.md) |\n",
+    )
+    write(scratch_repo, "docs/a.md", "# A\n")
+    write(scratch_repo, "docs/b.md", "# B\n")
+    write(scratch_repo, "README.md", "See [a](docs/a.md).\n")
+    git(scratch_repo, "add", ".")
+    clean = run(["git", "commit", "-m", "seed"], scratch_repo)
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+    before = git(scratch_repo, "rev-parse", "HEAD")
+
+    git(scratch_repo, "rm", "--quiet", "docs/a.md")
+    result = run(["git", "commit", "-m", "remove a"], scratch_repo)
+
+    output = result.stdout + result.stderr
+    assert result.returncode != 0
+    assert git(scratch_repo, "rev-parse", "HEAD") == before
+    sections = hook_sections(output)
+    assert sections["doc links"].startswith("Failed"), output
+    assert "[README.md]:" in sections["doc links"]
+    assert sections["docs indexed"].startswith("Failed"), output
+    assert (
+        "docs/INDEX.md:3: docs/a.md doesn't exist or isn't tracked by git"
+        in sections["docs indexed"]
+    )
+
+
+def hook_sections(output: str) -> dict[str, str]:
+    """pre-commit's output split per hook: each hook's name maps to its status and the lines
+    printed until the next hook's status line."""
+    sections: dict[str, str] = {}
+    name = None
+    for line in output.splitlines():
+        status_line = STATUS_LINE.match(line)
+        if status_line:
+            name = status_line["name"]
+            sections[name] = status_line["status"] + "\n"
+        elif name is not None:
+            sections[name] += line + "\n"
+    return sections
+
+
+STATUS_LINE = re.compile(r"(?P<name>[^.]+?)\.{3,}(?P<status>Passed|Failed|.*Skipped)$")
