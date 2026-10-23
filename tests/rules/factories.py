@@ -1,0 +1,29 @@
+"""Fresh input values for rule tests. Every factory takes keyword overrides only."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+from agent_docs_hooks.problems import Problem, RepoPath
+
+
+def problem(*, path: str = "docs/a.md", line: int | None = None, message: str = "bad") -> Problem:
+    return Problem(path=RepoPath(path), line=line, message=message)
+
+
+def skill_md(**fields: str | None) -> str:
+    """A `SKILL.md` whose frontmatter holds `name: my-skill`, a short description and `fields`.
+
+    Values are YAML source, written as given; `None` leaves the field out. Keys keep their order,
+    so `name` is on line 2 and `description` on line 3 unless overridden away."""
+    merged: dict[str, str | None] = {"name": "my-skill", "description": "Does one thing."}
+    merged.update(fields)
+    body = "".join(f"{key}: {value}\n" for key, value in merged.items() if value is not None)
+    return f"---\n{body}---\n\n# Skill\n"
+
+
+def index_md(*, rows: Sequence[tuple[str, str]] = ()) -> str:
+    """An `INDEX.md` holding one table whose body rows are `(trigger, path cell)` markdown pairs,
+    written as given. The header sits on line 1, so row `n` (from 0) is on line `n + 3`."""
+    body = "".join(f"| {trigger} | {cell} |\n" for trigger, cell in rows)
+    return f"| When | Read |\n| --- | --- |\n{body}"
