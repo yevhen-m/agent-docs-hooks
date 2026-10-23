@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import os
-import re
 from pathlib import Path
 
-from support import git, install_hooks, run, script
+from support import git, hook_sections, install_hooks, run, script
 
 
 def write(repo: Path, path: str, text: str) -> None:
@@ -123,21 +122,3 @@ def test_deletion_only_commit_fails(scratch_repo: Path, hook_repo_commit: tuple[
         "docs/INDEX.md:3: docs/a.md doesn't exist or isn't tracked by git"
         in sections["docs indexed"]
     )
-
-
-def hook_sections(output: str) -> dict[str, str]:
-    """pre-commit's output split per hook: each hook's name maps to its status and the lines
-    printed until the next hook's status line."""
-    sections: dict[str, str] = {}
-    name = None
-    for line in output.splitlines():
-        status_line = STATUS_LINE.match(line)
-        if status_line:
-            name = status_line["name"]
-            sections[name] = status_line["status"] + "\n"
-        elif name is not None:
-            sections[name] += line + "\n"
-    return sections
-
-
-STATUS_LINE = re.compile(r"(?P<name>[^.]+?)\.{3,}(?P<status>Passed|Failed|.*Skipped)$")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -107,3 +108,21 @@ def install_hooks(
 def pre_commit(*args: str) -> list[str]:
     """A pre-commit command line run by this test run's interpreter."""
     return [sys.executable, "-m", "pre_commit", *args]
+
+
+_STATUS_LINE = re.compile(r"(?P<name>[^.]+?)\.{3,}(?P<status>Passed|Failed|.*Skipped)$")
+
+
+def hook_sections(output: str) -> dict[str, str]:
+    """pre-commit's output split per hook: each hook's name maps to its status and the lines
+    printed until the next hook's status line."""
+    sections: dict[str, str] = {}
+    name = None
+    for line in output.splitlines():
+        status_line = _STATUS_LINE.match(line)
+        if status_line:
+            name = status_line["name"]
+            sections[name] = status_line["status"] + "\n"
+        elif name is not None:
+            sections[name] += line + "\n"
+    return sections
