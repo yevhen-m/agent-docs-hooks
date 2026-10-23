@@ -16,6 +16,9 @@ dependencies = [
     "markdown-it-py>=3",
 ]
 
+[project.scripts]
+agent-docs-budget = "agent_docs_hooks.budget:main"
+
 [dependency-groups]
 dev = [
     "pytest",

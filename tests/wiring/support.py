@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -77,3 +78,8 @@ def snapshot_repo(*, source: Path, dest: Path) -> str:
         "snapshot",
     )
     return git(dest, "rev-parse", "HEAD").strip()
+
+
+def script(name: str) -> Path:
+    """The console script `name` installed in this test run's environment."""
+    return Path(sys.executable).parent / name

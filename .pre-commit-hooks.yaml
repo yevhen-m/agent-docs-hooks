@@ -1,1 +1,7 @@
-[]
+- id: doc-budget
+  name: doc budget
+  description: Keeps CLAUDE.md, AGENTS.md, docs and skills within their line and token limits.
+  entry: agent-docs-budget
+  language: python
+  pass_filenames: false
+  always_run: true

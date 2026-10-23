@@ -64,8 +64,13 @@ def normalize_root(value: str) -> str:
 
 
 def read_text(root: Path, path: RepoPath) -> str:
-    """The file's text, with undecodable bytes replaced and every line ending turned into `\\n`."""
-    text = (root / path).read_bytes().decode("utf-8", errors="replace")
+    """The file's text as `decode_text` returns it."""
+    return decode_text((root / path).read_bytes())
+
+
+def decode_text(data: bytes) -> str:
+    """UTF-8 text with undecodable bytes replaced and every line ending turned into `\\n`."""
+    text = data.decode("utf-8", errors="replace")
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
