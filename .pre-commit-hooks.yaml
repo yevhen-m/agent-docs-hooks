@@ -5,3 +5,10 @@
   language: python
   pass_filenames: false
   always_run: true
+- id: skills
+  name: skills
+  description: Checks the frontmatter of every SKILL.md under the skills root.
+  entry: agent-docs-skills
+  language: python
+  pass_filenames: false
+  always_run: true

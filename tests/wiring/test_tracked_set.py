@@ -29,3 +29,32 @@ def test_budget_ignores_untracked_and_deleted(scratch_repo: Path) -> None:
         "CLAUDE.md: 201 lines (limit 200), ~101 tokens (limit 4,000)\n"
         "docs/long.md: 501 lines (limit 500), ~251 tokens (limit 5,000)\n"
     )
+
+
+NO_FRONTMATTER = "# No frontmatter\n"
+
+
+def test_skills_skips_symlinked_skill_dir(scratch_repo: Path) -> None:
+    write(scratch_repo, ".claude/skills/real/SKILL.md", NO_FRONTMATTER)
+    write(scratch_repo, "shared/linked/SKILL.md", NO_FRONTMATTER)
+    os.symlink("../../shared/linked", scratch_repo / ".claude/skills/linked")
+    git(scratch_repo, "add", ".")
+    git(scratch_repo, "commit", "--quiet", "-m", "seed")
+
+    result = run([script("agent-docs-skills")], scratch_repo)
+
+    assert (result.returncode, result.stderr) == (1, "")
+    assert result.stdout.splitlines() == [
+        ".claude/skills/real/SKILL.md: doesn't start with a frontmatter block between two --- lines"
+    ]
+
+
+def test_skills_skips_deleted_skill(scratch_repo: Path) -> None:
+    write(scratch_repo, ".claude/skills/gone/SKILL.md", NO_FRONTMATTER)
+    git(scratch_repo, "add", ".")
+    git(scratch_repo, "commit", "--quiet", "-m", "seed")
+    (scratch_repo / ".claude/skills/gone/SKILL.md").unlink()
+
+    result = run([script("agent-docs-skills")], scratch_repo)
+
+    assert (result.returncode, result.stdout, result.stderr) == (0, "", "")
