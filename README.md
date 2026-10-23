@@ -26,6 +26,7 @@ You don't need to install anything besides pre-commit. Each hook brings its own 
 Add this to your `.pre-commit-config.yaml`:
 
 ```yaml
+default_install_hook_types: [pre-commit, pre-merge-commit]
 repos:
   - repo: https://github.com/yevhen-m/agent-docs-hooks
     rev: v0.1.0
@@ -37,7 +38,9 @@ repos:
       - id: mdformat
 ```
 
-Then run `pre-commit install` once. Pick only the hooks you want; each one works on its own.
+Then run `pre-commit install` once. The `default_install_hook_types` line makes it set up the hooks
+for merge commits too, not just regular commits. Pick only the hooks you want; each one works on its
+own.
 
 A tag can be moved after you pin it. To pin the exact commit instead, run
 `pre-commit autoupdate --freeze`.
