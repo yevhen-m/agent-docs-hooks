@@ -27,6 +27,7 @@ DEFAULT_OPTIONS = (
     "gfm",
 )
 ROOT_CONFIG = ".mdformat.toml"
+NOT_UTF8 = "isn't saved as UTF-8, so mdformat can't read it; save it as UTF-8"
 
 
 def format_args(*, has_root_config: bool, paths: Sequence[str]) -> list[str]:
@@ -47,12 +48,30 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     has_root_config = (repo_root() / ROOT_CONFIG).is_file()
     before = {path: _contents(path) for path in paths}
-    status = mdformat._cli.run(format_args(has_root_config=has_root_config, paths=paths))
-    changed = [path for path in paths if _contents(path) != before[path]]
-    sys.stdout.write("".join(f"{path}: reformatted\n" for path in changed))
-    return 1 if changed or status != 0 else 0
+    unreadable = [path for path, data in before.items() if not _is_utf8(data)]
+    sys.stdout.write("".join(f"{path}: {NOT_UTF8}\n" for path in unreadable))
+    readable = [path for path in paths if path not in unreadable]
+    status = 0
+    try:
+        if readable:
+            status = mdformat._cli.run(format_args(has_root_config=has_root_config, paths=readable))
+    finally:
+        changed = [path for path in readable if _contents(path) != before[path]]
+        sys.stdout.write("".join(f"{path}: reformatted\n" for path in changed))
+    return 1 if unreadable or changed or status != 0 else 0
 
 
 def _contents(path: str) -> bytes | None:
     file = Path(path)
     return file.read_bytes() if file.is_file() else None
+
+
+def _is_utf8(data: bytes | None) -> bool:
+    """mdformat decodes each file as strict UTF-8 and raises mid-batch on the first that isn't."""
+    if data is None:
+        return True
+    try:
+        data.decode()
+    except UnicodeDecodeError:
+        return False
+    return True
