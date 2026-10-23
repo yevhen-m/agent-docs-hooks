@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "pre-commit hooks that keep agent-facing markdown formatted, linked, indexed and within budget"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
 dependencies = [
     "mdformat==1.0.0",
     "mdformat-gfm==1.0.0",
