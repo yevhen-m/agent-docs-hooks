@@ -135,7 +135,10 @@ def check_index(
     docs_root: str,
     texts: Mapping[RepoPath, str],
 ) -> list[Problem]:
-    """Every problem with how the docs under `docs_root` are indexed and reached."""
+    """Every problem with how the docs under `docs_root` are indexed and reached.
+
+    Passes outright only with no docs and no index: an index left after its last doc is deleted
+    is still checked, so its rows can't keep pointing at the deleted docs."""
     docs = sorted(
         path
         for path in tracked
@@ -143,7 +146,8 @@ def check_index(
         and path.endswith(".md")
         and posixpath.basename(path) != INDEX
     )
-    if not docs:
+    indexes = sorted(path for path in tracked if _index_dir(path, docs_root) is not None)
+    if not docs and not indexes:
         return []
     root_index = RepoPath(f"{docs_root}/{INDEX}")
     problems: list[Problem] = []
@@ -160,14 +164,14 @@ def check_index(
                     message=f"is too deep; docs go in {docs_root}/ or one directory below it",
                 )
             )
-    for directory in sorted({docs_root} | {posixpath.dirname(doc) for doc in listable}):
+    with_docs = {posixpath.dirname(doc) for doc in listable} | ({docs_root} if docs else set())
+    for directory in sorted(with_docs):
         index = RepoPath(f"{directory}/{INDEX}")
         if index not in tracked:
             problems.append(
                 Problem(path=index, line=None, message=_MISSING_INDEX[skipped.get(index)])
             )
 
-    indexes = sorted(path for path in tracked if _index_dir(path, docs_root) is not None)
     for index in indexes:
         directory = posixpath.dirname(index)
         expected = [doc for doc in listable if posixpath.dirname(doc) == directory]
@@ -183,7 +187,8 @@ def check_index(
             is_root=index == root_index,
         )
 
-    if not any(root_index in _links(texts[path]) for path in ROOT_INSTRUCTIONS if path in texts):
+    linked = any(root_index in _links(texts[path]) for path in ROOT_INSTRUCTIONS if path in texts)
+    if not linked and (docs or root_index in tracked):
         problems.append(
             Problem(
                 path=root_index,

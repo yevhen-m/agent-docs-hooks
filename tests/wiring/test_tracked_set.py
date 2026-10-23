@@ -123,3 +123,37 @@ def test_deletion_only_commit_fails(scratch_repo: Path, hook_repo_commit: tuple[
         "docs/INDEX.md:3: docs/a.md doesn't exist or isn't tracked by git"
         in sections["docs indexed"]
     )
+
+
+def test_deleting_the_only_doc_fails_while_the_index_lists_it(
+    scratch_repo: Path, hook_repo_commit: tuple[Path, str]
+) -> None:
+    install_hooks(repo=scratch_repo, hooks={"docs-indexed": []}, hook_repo=hook_repo_commit)
+    write(
+        scratch_repo,
+        "CLAUDE.md",
+        "Read [the docs](docs/INDEX.md) and [the guide](docs/guide.md).\n",
+    )
+    write(
+        scratch_repo,
+        "docs/INDEX.md",
+        "| When | Read |\n| --- | --- |\n| Always | [guide](guide.md) |\n",
+    )
+    write(scratch_repo, "docs/guide.md", "# Guide\n")
+    git(scratch_repo, "add", ".")
+    clean = run(["git", "commit", "-m", "seed"], scratch_repo)
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+    before = git(scratch_repo, "rev-parse", "HEAD")
+
+    git(scratch_repo, "rm", "--quiet", "docs/guide.md")
+    result = run(["git", "commit", "-m", "delete guide"], scratch_repo)
+
+    output = result.stdout + result.stderr
+    assert result.returncode != 0, output
+    assert git(scratch_repo, "rev-parse", "HEAD") == before
+    sections = hook_sections(output)
+    assert sections["docs indexed"].startswith("Failed"), output
+    assert (
+        "docs/INDEX.md:3: docs/guide.md doesn't exist or isn't tracked by git"
+        in sections["docs indexed"]
+    )

@@ -44,8 +44,36 @@ def test_valid_tree_passes() -> None:
     assert check(tree()) == []
 
 
-def test_no_docs_passes() -> None:
+def test_no_docs_and_no_index_passes() -> None:
     assert check({"README.md": "# Hi\n", "docs/notes.txt": "x\n"}) == []
+
+
+def test_index_left_after_its_last_doc_is_deleted_is_still_checked() -> None:
+    files = {"CLAUDE.md": LINKED, "docs/INDEX.md": index_md(rows=[("Before A", "[a](a.md)")])}
+
+    assert check(files) == [
+        problem("docs/INDEX.md", 3, "docs/a.md doesn't exist or isn't tracked by git")
+    ]
+
+
+def test_index_with_no_docs_and_no_rows_passes_when_linked() -> None:
+    assert check({"CLAUDE.md": LINKED, "docs/INDEX.md": index_md(rows=[])}) == []
+
+
+def test_index_with_no_docs_must_still_be_linked() -> None:
+    assert check({"docs/INDEX.md": index_md(rows=[])}) == [
+        problem("docs/INDEX.md", None, "isn't linked from the root CLAUDE.md or AGENTS.md")
+    ]
+
+
+def test_subdirectory_index_with_no_docs_must_be_listed_in_the_root_index() -> None:
+    files = {
+        "CLAUDE.md": LINKED,
+        "docs/INDEX.md": index_md(rows=[]),
+        "docs/s/INDEX.md": index_md(rows=[]),
+    }
+
+    assert check(files) == [problem("docs/s/INDEX.md", None, "isn't listed in docs/INDEX.md")]
 
 
 def test_doc_too_deep() -> None:
@@ -328,3 +356,11 @@ def test_entry_for_a_doc_too_deep_for_any_index() -> None:
         4,
         "docs/sub/d/x.md is too deep for any index; docs go in docs/ or one directory below it",
     ) in check(files)
+
+
+def test_subdirectory_index_with_no_docs_is_checked_without_a_root_index() -> None:
+    files = {"docs/s/INDEX.md": index_md(rows=[("Before A", "[a](a.md)")])}
+
+    assert check(files) == [
+        problem("docs/s/INDEX.md", 3, "docs/s/a.md doesn't exist or isn't tracked by git")
+    ]
