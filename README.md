@@ -136,8 +136,9 @@ The rules:
 4. The root `CLAUDE.md` or `AGENTS.md` links to `docs/INDEX.md`. Claude Code reads only `CLAUDE.md`,
    so link it from there.
 
-A doc is any `.md` file git tracks under the docs folder, other than `INDEX.md`. If there are no
-docs, the hook passes.
+A doc is any `.md` file git tracks under the docs folder, other than `INDEX.md`. The hook passes
+when there are no docs and no `INDEX.md`. If you delete the last doc and keep its `INDEX.md`, the
+hook still checks that index, so a row pointing at the deleted doc fails.
 
 Args: `--docs-root` (default `docs`).
 
