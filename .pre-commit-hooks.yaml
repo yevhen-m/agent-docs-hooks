@@ -19,3 +19,9 @@
   language: python
   pass_filenames: false
   always_run: true
+- id: mdformat
+  name: mdformat
+  description: Formats markdown with mdformat, its GFM and frontmatter plugins, at wrap 100.
+  entry: agent-docs-mdformat
+  language: python
+  types: [markdown]

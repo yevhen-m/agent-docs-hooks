@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 TIMEOUT_SECONDS = 300
@@ -83,3 +84,26 @@ def snapshot_repo(*, source: Path, dest: Path) -> str:
 def script(name: str) -> Path:
     """The console script `name` installed in this test run's environment."""
     return Path(sys.executable).parent / name
+
+
+def install_hooks(
+    *, repo: Path, hooks: Mapping[str, Sequence[str]], hook_repo: tuple[Path, str]
+) -> None:
+    """Commit a `.pre-commit-config.yaml` naming `hook_repo` by path and sha, with each hook id
+    given its args (none when empty), and install the git hook."""
+    path, sha = hook_repo
+    lines = ["repos:", f"  - repo: {json.dumps(str(path))}", f"    rev: {sha}", "    hooks:"]
+    for hook_id, args in hooks.items():
+        lines.append(f"      - id: {hook_id}")
+        if args:
+            lines.append(f"        args: {json.dumps(list(args))}")
+    (repo / ".pre-commit-config.yaml").write_text("\n".join(lines) + "\n")
+    git(repo, "add", ".pre-commit-config.yaml")
+    git(repo, "commit", "--quiet", "-m", "install hooks")
+    result = run(pre_commit("install"), repo)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def pre_commit(*args: str) -> list[str]:
+    """A pre-commit command line run by this test run's interpreter."""
+    return [sys.executable, "-m", "pre_commit", *args]
