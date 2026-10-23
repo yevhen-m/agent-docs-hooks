@@ -4,10 +4,20 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from enum import Enum
 from typing import NewType
 
 RepoPath = NewType("RepoPath", str)
 """A repo-relative POSIX path, as `git ls-files` prints it."""
+
+
+class Skipped(Enum):
+    """Why the hooks don't read a path git tracks."""
+
+    SYMLINK = "symlink"
+    """The hooks don't follow symlinks."""
+    DELETED = "deleted"
+    """Tracked, but missing from disk, which a run without stashing can see."""
 
 
 @dataclass(frozen=True, slots=True)

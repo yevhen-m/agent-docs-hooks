@@ -84,7 +84,8 @@ def test_index_targets_are_tracked(scratch_repo: Path) -> None:
     assert (result.returncode, result.stderr) == (1, "")
     assert result.stdout.splitlines() == [
         "docs/INDEX.md:4: docs/draft.md doesn't exist or isn't tracked by git",
-        "docs/INDEX.md:5: docs/gone.md doesn't exist or isn't tracked by git",
+        "docs/INDEX.md:5: docs/gone.md is tracked by git but missing from disk; "
+        "restore it or remove this row",
     ]
 
 

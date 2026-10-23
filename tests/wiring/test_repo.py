@@ -6,9 +6,10 @@ from pathlib import Path
 from support import git, snapshot_repo
 
 from agent_docs_hooks._repo import tracked_files
+from agent_docs_hooks.problems import Skipped
 
 
-def test_tracked_files_excludes_untracked_symlinks_and_deleted(scratch_repo: Path) -> None:
+def test_tracked_files_reads_only_regular_files_on_disk(scratch_repo: Path) -> None:
     (scratch_repo / "kept.md").write_text("kept\n")
     (scratch_repo / "gone.md").write_text("gone\n")
     os.symlink("kept.md", scratch_repo / "link.md")
@@ -17,7 +18,10 @@ def test_tracked_files_excludes_untracked_symlinks_and_deleted(scratch_repo: Pat
     (scratch_repo / "gone.md").unlink()
     (scratch_repo / "untracked.md").write_text("untracked\n")
 
-    assert tracked_files(scratch_repo) == {"kept.md"}
+    listing = tracked_files(scratch_repo)
+
+    assert listing.files == {"kept.md"}
+    assert listing.skipped == {"gone.md": Skipped.DELETED, "link.md": Skipped.SYMLINK}
 
 
 def test_snapshot_repo(scratch_repo: Path, tmp_path: Path) -> None:

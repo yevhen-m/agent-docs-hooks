@@ -8,9 +8,9 @@ from agent_docs_hooks.budget import (
     budget_subjects,
     check_budget,
     measure,
-    untracked_always_loaded,
+    unreadable_always_loaded,
 )
-from agent_docs_hooks.problems import Problem, RepoPath
+from agent_docs_hooks.problems import Problem, RepoPath, Skipped
 
 
 def lines(count: int) -> str:
@@ -102,12 +102,30 @@ def test_measure(text: str, expected: Measure) -> None:
     assert measure(text) == expected
 
 
-def test_untracked_always_loaded_path_is_a_problem() -> None:
-    problems = untracked_always_loaded(
+def test_always_loaded_path_the_hook_cant_read_is_a_problem() -> None:
+    problems = unreadable_always_loaded(
         tracked=frozenset({RepoPath("docs/policy.md")}),
-        always_loaded=frozenset({"docs/policy.md", "docs/polcy.md"}),
+        skipped={
+            RepoPath(".github/copilot-instructions.md"): Skipped.SYMLINK,
+            RepoPath("AGENTS.md"): Skipped.DELETED,
+        },
+        always_loaded=frozenset(
+            {"docs/policy.md", "docs/polcy.md", ".github/copilot-instructions.md", "AGENTS.md"}
+        ),
     )
 
     assert problems == [
-        Problem(RepoPath("docs/polcy.md"), None, "listed with --always-loaded but not tracked")
+        Problem(
+            RepoPath(".github/copilot-instructions.md"),
+            None,
+            "listed with --always-loaded, but it's a symlink, which the hooks don't follow; "
+            "list the file it points to instead",
+        ),
+        Problem(
+            RepoPath("AGENTS.md"),
+            None,
+            "listed with --always-loaded and tracked by git, but missing from disk; "
+            "restore it or drop the option",
+        ),
+        Problem(RepoPath("docs/polcy.md"), None, "listed with --always-loaded but not tracked"),
     ]

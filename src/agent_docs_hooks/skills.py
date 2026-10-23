@@ -238,7 +238,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     root = repo_root()
-    subjects = skill_subjects(tracked=tracked_files(root), skills_root=args.skills_root)
+    subjects = skill_subjects(tracked=tracked_files(root).files, skills_root=args.skills_root)
     texts = {path: read_text(root, path) for path in subjects}
     return finish(
         [problem for path, text in texts.items() for problem in check_skill(path=path, text=text)]

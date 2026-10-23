@@ -14,7 +14,7 @@ from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
 from agent_docs_hooks._repo import finish, normalize_root, read_text, repo_root, tracked_files
-from agent_docs_hooks.problems import Problem, RepoPath
+from agent_docs_hooks.problems import Problem, RepoPath, Skipped
 
 INDEX = "INDEX.md"
 ROOT_INSTRUCTIONS = (RepoPath("CLAUDE.md"), RepoPath("AGENTS.md"))
@@ -120,7 +120,11 @@ def _resolve(href: str, *, base: str) -> RepoPath | None:
 
 
 def check_index(
-    *, tracked: frozenset[RepoPath], docs_root: str, texts: Mapping[RepoPath, str]
+    *,
+    tracked: frozenset[RepoPath],
+    skipped: Mapping[RepoPath, Skipped],
+    docs_root: str,
+    texts: Mapping[RepoPath, str],
 ) -> list[Problem]:
     """Every problem with how the docs under `docs_root` are indexed and reached."""
     docs = sorted(
@@ -151,11 +155,7 @@ def check_index(
         index = RepoPath(f"{directory}/{INDEX}")
         if index not in tracked:
             problems.append(
-                Problem(
-                    path=index,
-                    line=None,
-                    message="is missing; a directory with docs needs an INDEX.md that lists them",
-                )
+                Problem(path=index, line=None, message=_MISSING_INDEX[skipped.get(index)])
             )
 
     indexes = sorted(path for path in tracked if _index_dir(path, docs_root) is not None)
@@ -169,6 +169,7 @@ def check_index(
             rows=parse_rows(index_path=index, text=texts[index]),
             expected=expected,
             tracked=tracked,
+            skipped=skipped,
             is_root=index == root_index,
         )
 
@@ -189,6 +190,7 @@ def _check_one_index(
     rows: Sequence[Row],
     expected: Sequence[RepoPath],
     tracked: frozenset[RepoPath],
+    skipped: Mapping[RepoPath, Skipped],
     is_root: bool,
 ) -> list[Problem]:
     """Rules 4 to 6 for one index: valid rows, valid targets, and each expected path listed once."""
@@ -200,7 +202,9 @@ def _check_one_index(
             problems.append(Problem(path=index, line=row.line, message=row.reason))
             continue
         target = row.target
-        mistake = _target_mistake(target, directory=directory, tracked=tracked, is_root=is_root)
+        mistake = _target_mistake(
+            target, directory=directory, tracked=tracked, skipped=skipped, is_root=is_root
+        )
         if mistake is not None:
             problems.append(Problem(path=index, line=row.line, message=mistake))
         elif target in first_line:
@@ -221,12 +225,33 @@ def _check_one_index(
     return problems
 
 
+_MISSING_INDEX = {
+    None: "is missing; a directory with docs needs an INDEX.md that lists them",
+    Skipped.SYMLINK: "is a symlink, which the hooks don't follow; replace it with the file itself",
+    Skipped.DELETED: "is tracked by git but missing from disk; restore it",
+}
+
+_UNREADABLE_TARGET = {
+    None: "doesn't exist or isn't tracked by git",
+    Skipped.SYMLINK: (
+        "is a symlink, which the hooks don't follow; replace it with the file itself "
+        "or remove this row"
+    ),
+    Skipped.DELETED: "is tracked by git but missing from disk; restore it or remove this row",
+}
+
+
 def _target_mistake(
-    target: RepoPath, *, directory: str, tracked: frozenset[RepoPath], is_root: bool
+    target: RepoPath,
+    *,
+    directory: str,
+    tracked: frozenset[RepoPath],
+    skipped: Mapping[RepoPath, Skipped],
+    is_root: bool,
 ) -> str | None:
     """Why an entry's target isn't one this index may list, or `None` when it may."""
     if target not in tracked:
-        return f"{target} doesn't exist or isn't tracked by git"
+        return f"{target} {_UNREADABLE_TARGET[skipped.get(target)]}"
     target_dir, name = posixpath.split(target)
     if is_root and name == INDEX and posixpath.dirname(target_dir) == directory:
         return None
@@ -260,9 +285,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     root = repo_root()
-    tracked = tracked_files(root)
+    listing = tracked_files(root)
     texts = {
         path: read_text(root, path)
-        for path in index_inputs(tracked=tracked, docs_root=args.docs_root)
+        for path in index_inputs(tracked=listing.files, docs_root=args.docs_root)
     }
-    return finish(check_index(tracked=tracked, docs_root=args.docs_root, texts=texts))
+    return finish(
+        check_index(
+            tracked=listing.files,
+            skipped=listing.skipped,
+            docs_root=args.docs_root,
+            texts=texts,
+        )
+    )

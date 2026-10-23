@@ -50,7 +50,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.parse_args(argv)
 
     root = repo_root()
-    paths = sorted(path for path in tracked_files(root) if path.endswith(".md"))
+    paths = sorted(path for path in tracked_files(root).files if path.endswith(".md"))
     if not paths:
         return 0
     command = [

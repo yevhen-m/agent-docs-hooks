@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 from agent_docs_hooks._repo import finish, normalize_root, read_text, repo_root, tracked_files
-from agent_docs_hooks.problems import Problem, RepoPath
+from agent_docs_hooks.problems import Problem, RepoPath, Skipped
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,13 +47,31 @@ def _under(path: str, root: str) -> bool:
     return path.startswith(f"{root}/")
 
 
-def untracked_always_loaded(
-    *, tracked: frozenset[RepoPath], always_loaded: frozenset[str]
+_UNREADABLE_ALWAYS_LOADED = {
+    None: "listed with --always-loaded but not tracked",
+    Skipped.SYMLINK: (
+        "listed with --always-loaded, but it's a symlink, which the hooks don't follow; "
+        "list the file it points to instead"
+    ),
+    Skipped.DELETED: (
+        "listed with --always-loaded and tracked by git, but missing from disk; "
+        "restore it or drop the option"
+    ),
+}
+
+
+def unreadable_always_loaded(
+    *,
+    tracked: frozenset[RepoPath],
+    skipped: Mapping[RepoPath, Skipped],
+    always_loaded: frozenset[str],
 ) -> list[Problem]:
-    """A problem for each `--always-loaded` path git doesn't track, so a typo can't pass."""
+    """A problem for each `--always-loaded` path the hook can't read, so a typo can't pass."""
     return [
         Problem(
-            path=RepoPath(path), line=None, message="listed with --always-loaded but not tracked"
+            path=RepoPath(path),
+            line=None,
+            message=_UNREADABLE_ALWAYS_LOADED[skipped.get(RepoPath(path))],
         )
         for path in sorted(always_loaded - tracked)
     ]
@@ -102,9 +120,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     always_loaded: frozenset[str] = frozenset(args.always_loaded)
 
     root = repo_root()
-    tracked = tracked_files(root)
+    listing = tracked_files(root)
     limits = budget_subjects(
-        tracked=tracked,
+        tracked=listing.files,
         docs_root=args.docs_root,
         skills_root=args.skills_root,
         always_loaded=always_loaded,
@@ -112,7 +130,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     texts = {path: read_text(root, path) for path in limits}
     return finish(
         [
-            *untracked_always_loaded(tracked=tracked, always_loaded=always_loaded),
+            *unreadable_always_loaded(
+                tracked=listing.files, skipped=listing.skipped, always_loaded=always_loaded
+            ),
             *check_budget(texts=texts, limits=limits),
         ]
     )

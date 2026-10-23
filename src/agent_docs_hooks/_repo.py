@@ -6,12 +6,24 @@ import argparse
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
-from agent_docs_hooks.problems import Problem, RepoPath, render
+from agent_docs_hooks.problems import Problem, RepoPath, Skipped, render
 
 _REGULAR_FILE_MODES = frozenset({"100644", "100755"})
+_SYMLINK_MODE = "120000"
+
+
+@dataclass(frozen=True, slots=True)
+class Tracked:
+    """What git tracks, as the hooks see it."""
+
+    files: frozenset[RepoPath]
+    """Regular files that are on disk: the only paths the hooks read."""
+    skipped: Mapping[RepoPath, Skipped]
+    """Every other tracked path except submodules, with the reason it isn't read."""
 
 
 def repo_root() -> Path:
@@ -25,24 +37,25 @@ def repo_root() -> Path:
     return Path(result.stdout.rstrip("\n"))
 
 
-def tracked_files(root: Path) -> frozenset[RepoPath]:
-    """Tracked regular files present in the working tree; symlinks and submodules are left out."""
+def tracked_files(root: Path) -> Tracked:
+    """The tracked regular files on disk, and why each other tracked path is skipped."""
     listing = subprocess.run(
         ["git", "ls-files", "--stage", "-z"], cwd=root, capture_output=True, check=True
     ).stdout
-    paths = set()
+    files = set()
+    skipped = {}
     for entry in os.fsdecode(listing).split("\0"):
         if not entry:
             continue
-        meta, path = entry.split("\t", 1)
-        mode = meta.split(" ", 1)[0]
-        if mode in _REGULAR_FILE_MODES and _is_regular_file(root / path):
-            paths.add(RepoPath(path))
-    return frozenset(paths)
-
-
-def _is_regular_file(path: Path) -> bool:
-    return path.is_file() and not path.is_symlink()
+        meta, name = entry.split("\t", 1)
+        mode, path, on_disk = meta.split(" ", 1)[0], RepoPath(name), root / name
+        if mode == _SYMLINK_MODE or (mode in _REGULAR_FILE_MODES and on_disk.is_symlink()):
+            skipped[path] = Skipped.SYMLINK
+        elif mode in _REGULAR_FILE_MODES and on_disk.is_file():
+            files.add(path)
+        elif mode in _REGULAR_FILE_MODES:
+            skipped[path] = Skipped.DELETED
+    return Tracked(files=frozenset(files), skipped=skipped)
 
 
 def normalize_root(value: str) -> str:

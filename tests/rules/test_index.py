@@ -4,17 +4,27 @@ import pytest
 from factories import index_md
 
 from agent_docs_hooks.index import BadRow, Entry, check_index, index_inputs, parse_rows
-from agent_docs_hooks.problems import Problem, RepoPath
+from agent_docs_hooks.problems import Problem, RepoPath, Skipped
 
 LINKED = "Start with [the docs](docs/INDEX.md).\n"
 ROOT_INDEX = RepoPath("docs/INDEX.md")
 
 
-def check(files: dict[str, str], *, docs_root: str = "docs") -> list[Problem]:
+def check(
+    files: dict[str, str],
+    *,
+    docs_root: str = "docs",
+    skipped: dict[str, Skipped] | None = None,
+) -> list[Problem]:
     tracked = frozenset(RepoPath(path) for path in files)
     read = index_inputs(tracked=tracked, docs_root=docs_root)
     texts = {path: files[path] for path in read}
-    return check_index(tracked=tracked, docs_root=docs_root, texts=texts)
+    return check_index(
+        tracked=tracked,
+        skipped={RepoPath(path): why for path, why in (skipped or {}).items()},
+        docs_root=docs_root,
+        texts=texts,
+    )
 
 
 def tree() -> dict[str, str]:
@@ -239,3 +249,45 @@ def test_parse_rows() -> None:
         Entry(trigger="Before A", target=RepoPath("docs/a.md"), line=3),
         BadRow(line=4, reason="row has no trigger in its first cell"),
     ]
+
+
+@pytest.mark.parametrize(
+    ("why", "message"),
+    [
+        (
+            Skipped.SYMLINK,
+            "docs/b.md is a symlink, which the hooks don't follow; "
+            "replace it with the file itself or remove this row",
+        ),
+        (
+            Skipped.DELETED,
+            "docs/b.md is tracked by git but missing from disk; restore it or remove this row",
+        ),
+    ],
+)
+def test_entry_for_a_tracked_path_the_hook_cant_read_says_why(why: Skipped, message: str) -> None:
+    files = tree()
+    files["docs/INDEX.md"] = index_md(
+        rows=[("Before changing A", "[a](a.md)"), ("Before changing B", "[b](b.md)")]
+    )
+
+    assert check(files, skipped={"docs/b.md": why}) == [problem("docs/INDEX.md", 4, message)]
+
+
+@pytest.mark.parametrize(
+    ("why", "message"),
+    [
+        (
+            Skipped.SYMLINK,
+            "is a symlink, which the hooks don't follow; replace it with the file itself",
+        ),
+        (Skipped.DELETED, "is tracked by git but missing from disk; restore it"),
+    ],
+)
+def test_index_git_tracks_but_the_hook_cant_read_says_why(why: Skipped, message: str) -> None:
+    files = tree()
+    files["docs/s/c.md"] = "# C\n"
+
+    problems = check(files, skipped={"docs/s/INDEX.md": why})
+
+    assert problem("docs/s/INDEX.md", None, message) in problems
