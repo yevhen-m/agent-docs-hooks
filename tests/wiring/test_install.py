@@ -4,7 +4,7 @@ from pathlib import Path
 
 from support import git, hook_sections, install_hooks, pre_commit, run
 
-HOOK_IDS = ("doc-budget", "docs-indexed", "skills", "doc-links", "mdformat")
+HOOK_IDS = ("doc-budget", "doc-frontmatter", "docs-indexed", "skills", "doc-links", "mdformat")
 
 CONVENTIONAL = {
     "CLAUDE.md": "Read [the docs](docs/INDEX.md).\n",
@@ -45,7 +45,14 @@ def test_defaults(scratch_repo: Path, tmp_path: Path, hook_repo_commit: tuple[Pa
     status, sections, output = run_all(scratch_repo)
 
     assert status == 0, output
-    assert set(sections) == {"doc budget", "docs indexed", "skills", "doc links", "mdformat"}
+    assert set(sections) == {
+        "doc budget",
+        "doc frontmatter",
+        "docs indexed",
+        "skills",
+        "doc links",
+        "mdformat",
+    }
 
     empty = tmp_path / "empty"
     empty.mkdir()
@@ -63,7 +70,7 @@ def test_defaults(scratch_repo: Path, tmp_path: Path, hook_repo_commit: tuple[Pa
         scratch_repo,
         {
             "AGENTS.md": "\n\n".join(["x"] * 101) + "\n",
-            "docs/unlisted.md": "# Unlisted\n",
+            "docs/unlisted.md": "---\naliases: [legacy]\n---\n\n# Unlisted\n",
             ".claude/skills/my-skill/SKILL.md": (
                 "---\nname: other-name\ndescription: Does one thing.\n---\n\n# My skill\n"
             ),
@@ -78,6 +85,7 @@ def test_defaults(scratch_repo: Path, tmp_path: Path, hook_repo_commit: tuple[Pa
     assert all(section.startswith("Failed") for section in sections.values()), output
     assert "AGENTS.md: 201 lines (limit 200)" in sections["doc budget"]
     assert "docs/unlisted.md: isn't listed in docs/INDEX.md" in sections["docs indexed"]
+    assert "docs/unlisted.md:2: aliases is not allowed here" in sections["doc frontmatter"]
     assert ".claude/skills/my-skill/SKILL.md:2: name other-name" in sections["skills"]
     assert "[broken.md]:" in sections["doc links"]
     assert "messy.md: reformatted" in sections["mdformat"]
@@ -156,7 +164,14 @@ def test_checks_run_once_per_commit_with_commit_msg_installed(
 
     output = result.stdout + result.stderr
     assert result.returncode == 0, output
-    for name in ("doc budget", "docs indexed", "skills", "doc links", "mdformat"):
+    for name in (
+        "doc budget",
+        "doc frontmatter",
+        "docs indexed",
+        "skills",
+        "doc links",
+        "mdformat",
+    ):
         assert output.count(f"{name}...") == 1, output
 
 

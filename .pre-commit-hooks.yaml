@@ -6,6 +6,14 @@
   stages: [pre-commit, pre-merge-commit, manual]
   pass_filenames: false
   always_run: true
+- id: doc-frontmatter
+  name: doc frontmatter
+  description: Checks optional document metadata with generic fields and a repository policy.
+  entry: agent-docs-frontmatter
+  language: python
+  stages: [pre-commit, pre-merge-commit, manual]
+  pass_filenames: false
+  always_run: true
 - id: skills
   name: skills
   description: Checks the frontmatter of every SKILL.md under the skills root.

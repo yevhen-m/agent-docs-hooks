@@ -10,13 +10,14 @@ catch all of that when you commit.
 
 ## What it checks
 
-| Hook           | What it checks                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------ |
-| `mdformat`     | Formats markdown with mdformat 1.0 and its GFM and frontmatter plugins, at 100 columns     |
-| `doc-links`    | Every relative link and heading anchor points at something that exists                     |
-| `doc-budget`   | Agent-facing files stay under their line and token limits                                  |
-| `docs-indexed` | Every doc is listed in its folder's `INDEX.md`, and the root `CLAUDE.md` links the top one |
-| `skills`       | Every skill's `SKILL.md` frontmatter follows the Agent Skills spec                         |
+| Hook              | What it checks                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `mdformat`        | Formats markdown with mdformat 1.0 and its GFM and frontmatter plugins, at 100 columns     |
+| `doc-links`       | Every relative link and heading anchor points at something that exists                     |
+| `doc-budget`      | Agent-facing files stay under their line and token limits                                  |
+| `docs-indexed`    | Every doc is listed in its folder's `INDEX.md`, and the root `CLAUDE.md` links the top one |
+| `skills`          | Every skill's `SKILL.md` frontmatter follows the Agent Skills spec                         |
+| `doc-frontmatter` | Optional document metadata has known fields, useful values and valid references            |
 
 You don't need to install anything besides pre-commit. Each hook brings its own tools, including the
 [lychee](https://github.com/lycheeverse/lychee) link checker.
@@ -167,6 +168,70 @@ Skills nested deeper than one folder aren't checked, because Claude Code doesn't
 symlinked skill folder isn't checked either.
 
 Args: `--skills-root` (default `.claude/skills`).
+
+### `doc-frontmatter`
+
+Checks optional YAML frontmatter in tracked `.md` files under `docs/`. A document without
+frontmatter passes. The hook never adds fields, rewrites metadata or refreshes review dates.
+
+This hook was added after v0.1.0. To use it, pin a commit containing it and add
+`- id: doc-frontmatter` to that revision's hooks; the v0.1.0 install example above has five hooks.
+
+These generic fields work without configuration, in any collection:
+
+| Fields                                            | Type and purpose                                                                                            |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `status`                                          | Nonempty string describing an artifact's state; your repo chooses the states                                |
+| `date`                                            | Event date, only when it differs from a date already in the filename                                        |
+| `supersedes`, `superseded-by`                     | One reference or a nonempty list of references                                                              |
+| `last-reviewed`, `review-every`, `invalidated-by` | Review date, nonempty cadence string and a nonempty list of invalidation conditions; use all three together |
+| `source-type`, `date-captured`, `origin`          | Nonempty source kind, capture date and nonempty provenance description                                      |
+| `evidence-date`                                   | Date of the evidence a summary relies on                                                                    |
+
+Dates must be actual calendar dates written as `YYYY-MM-DD`, quoted or unquoted. References must be
+HTTP(S) URLs or paths relative to the repo root that name tracked regular files on disk. URLs aren't
+fetched. Local references don't support heading fragments. Put reader-facing links in the body too:
+metadata doesn't replace a route through the docs.
+
+Unknown fields, duplicate keys, malformed YAML and empty values fail. The hook checks value types,
+so `status: true` fails while `status: "true"` is a string. Words such as `on` and `yes` remain
+strings. Review dates record a human review; the hook checks their shape, not their freshness.
+
+To add fields or restrict them by collection, put `.frontmatter.yaml` at the repo root:
+
+```yaml
+fields:
+  audience: string
+  archived: date
+default-allowed: []
+rules:
+  - paths: [docs/decisions/*.md]
+    allowed: [status, date, supersedes, superseded-by]
+    values:
+      status: [open, accepted, superseded]
+  - paths: [docs/guides/*.md]
+    allowed: [audience, archived, last-reviewed, review-every, invalidated-by]
+```
+
+`fields` adds custom field names and types: `string`, `date`, `string-list` or `references`. Generic
+types can't be redefined. Strings and lists must be nonempty, including every list item.
+
+`default-allowed` lists fields permitted when no rule matches; if omitted, all generic and custom
+fields are allowed. `[]` permits no metadata in unmatched documents. Each rule replaces that default
+with its `allowed` fields. The first matching rule wins. `paths` uses case-sensitive shell patterns
+against repo-relative POSIX paths; `*` matches `/` too. `values` optionally restricts an allowed
+string field to an enum. No field becomes mandatory.
+
+Set `allow-filename-date: true` if your workflow needs a `date` that repeats the filename. Invalid
+configuration, including unknown settings and undefined field names, fails even with no docs.
+
+Args: `--docs-root` (default `docs`) and `--config PATH` (defaults to optional `.frontmatter.yaml`).
+An explicitly named config file must exist. Both paths are relative to the repo root.
+
+For a focused check while developing this hook, run `uv sync --locked`, then
+`uv run pytest tests/rules/test_frontmatter.py tests/wiring/test_frontmatter_git.py -q`. The full
+test suite is `uv run pytest -q`. CI also runs `uv run ruff check`, `uv run ruff format --check`,
+`uv run mypy` and `uv run pre-commit try-repo . --all-files`.
 
 ## Why the formatter doesn't re-stage
 
