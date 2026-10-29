@@ -20,6 +20,7 @@ dependencies = [
 
 [project.scripts]
 agent-docs-budget = "agent_docs_hooks.budget:main"
+agent-docs-frontmatter = "agent_docs_hooks.frontmatter:main"
 agent-docs-indexed = "agent_docs_hooks.index:main"
 agent-docs-links = "agent_docs_hooks.links:main"
 agent-docs-mdformat = "agent_docs_hooks.mdformat_hook:main"
